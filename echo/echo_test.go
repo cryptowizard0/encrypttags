@@ -81,12 +81,18 @@ func TestEchoCheckpointExcludesKnownSecretSentinels(t *testing.T) {
 		Meta: vmmSchema.Meta{
 			Params: map[string]string{
 				"SpawnSecret": "spawn-secret-e2e",
-				"Secret":      "message-secret-e2e",
-				"Plain":       "plain-e2e",
 			},
 		},
 	})
 	require.NoError(t, err)
+
+	res := vm.Apply("sender", vmmSchema.Meta{
+		Params: map[string]string{
+			"Secret": "message-secret-e2e",
+			"Plain":  "plain-e2e",
+		},
+	})
+	require.NoError(t, res.Error)
 
 	checkpoint, err := vm.Checkpoint()
 	require.NoError(t, err)
