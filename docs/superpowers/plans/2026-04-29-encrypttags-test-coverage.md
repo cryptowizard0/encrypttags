@@ -300,6 +300,16 @@ Replace the final five `fmt.Println` / `fmt.Printf` success lines in `encryptTag
 	return nil
 ```
 
+Also remove these earlier plaintext debug prints from `encryptTagsCmd`:
+
+```go
+	fmt.Printf("re SpawnSecret: %s\n", output["SpawnSecret"])
+	fmt.Printf("re Secret: %s\n", output["Secret"])
+	fmt.Printf("re Plain: %s\n", output["Plain"])
+```
+
+The plain value is still emitted by `printEncryptedTagsSuccess` as `Plain=plain-e2e`; `SpawnSecret` and `Secret` must not be printed directly.
+
 - [ ] **Step 6: Run gofmt and examples tests**
 
 Run:
