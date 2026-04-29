@@ -35,6 +35,28 @@ func TestEchoApplyOutputsDecryptedParams(t *testing.T) {
 	require.Empty(t, res.Cache)
 }
 
+func TestEchoApplyHandlesMissingEncryptedParams(t *testing.T) {
+	vm, err := New(vmmSchema.Env{
+		Meta: vmmSchema.Meta{
+			Params: map[string]string{},
+		},
+	})
+	require.NoError(t, err)
+
+	res := vm.Apply("sender", vmmSchema.Meta{
+		Params: map[string]string{
+			"Plain": "plain-e2e",
+		},
+	})
+	require.NoError(t, res.Error)
+
+	output, ok := res.Output.(map[string]string)
+	require.True(t, ok)
+	require.Empty(t, output["SpawnSecret"])
+	require.Empty(t, output["Secret"])
+	require.Equal(t, "plain-e2e", output["Plain"])
+}
+
 func TestEchoCheckpointDoesNotStoreSecrets(t *testing.T) {
 	vm, err := New(vmmSchema.Env{
 		Meta: vmmSchema.Meta{
@@ -52,6 +74,25 @@ func TestEchoCheckpointDoesNotStoreSecrets(t *testing.T) {
 	var payload map[string]string
 	require.NoError(t, json.Unmarshal([]byte(checkpoint), &payload))
 	require.Equal(t, schema.ModuleFormat, payload["Module-Format"])
+}
+
+func TestEchoCheckpointExcludesKnownSecretSentinels(t *testing.T) {
+	vm, err := New(vmmSchema.Env{
+		Meta: vmmSchema.Meta{
+			Params: map[string]string{
+				"SpawnSecret": "spawn-secret-e2e",
+				"Secret":      "message-secret-e2e",
+				"Plain":       "plain-e2e",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	checkpoint, err := vm.Checkpoint()
+	require.NoError(t, err)
+	require.NotContains(t, checkpoint, "spawn-secret-e2e")
+	require.NotContains(t, checkpoint, "message-secret-e2e")
+	require.NotContains(t, checkpoint, "plain-e2e")
 }
 
 func TestEchoRestoreKeepsSpawnSecretFromRecoveredEnv(t *testing.T) {
