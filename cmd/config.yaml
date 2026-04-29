@@ -1,0 +1,16 @@
+port: :8080
+ginMode: debug
+
+redisURL: redis://@localhost:6379/15
+
+arweaveURL: https://arweave.net
+hymxURL: http://127.0.0.1:8080
+
+prvKey: 0x64dd2342616f385f3e8157cf7246cf394217e13e8f91b7d208e9f8b60e25ed1b
+keyfilePath: ./test_keyfile.json
+
+nodeName: encrypttags-e2e
+nodeDesc: encrypted tags local e2e node
+nodeURL: http://127.0.0.1:8080
+
+joinNetwork: false
