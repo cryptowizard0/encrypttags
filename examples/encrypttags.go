@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	hymxSchema "github.com/hymatrix/hymx/schema"
@@ -11,6 +13,23 @@ import (
 	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
 	goarSchema "github.com/permadao/goar/schema"
 )
+
+type encryptedTagsSummary struct {
+	SpawnEncrypted   bool
+	SpawnLeaked      bool
+	MessageEncrypted bool
+	MessageLeaked    bool
+	ReservedRejected bool
+	Plain            string
+}
+
+func printEncryptedTagsSuccess(w io.Writer, summary encryptedTagsSummary) {
+	fmt.Fprintln(w, "E2E encrypted tags passed")
+	fmt.Fprintf(w, "RAW spawn encrypted=%v plaintext_leaked=%v\n", summary.SpawnEncrypted, summary.SpawnLeaked)
+	fmt.Fprintf(w, "RAW message encrypted=%v plaintext_leaked=%v\n", summary.MessageEncrypted, summary.MessageLeaked)
+	fmt.Fprintf(w, "RESULT decrypted=true Secret=<redacted> SpawnSecret=<redacted> Plain=%s\n", summary.Plain)
+	fmt.Fprintf(w, "reserved encrypted tag rejected=%v\n", summary.ReservedRejected)
+}
 
 const (
 	echoModule       = "pSOHJTp08z0WJ23F1iU2YQ9-nW7asB4hLNT9ME5wzmw"
@@ -71,9 +90,6 @@ func encryptTagsCmd() error {
 	if output["SpawnSecret"] != e2eSpawnSecret || output["Secret"] != e2eMessageSecret || output["Plain"] != e2ePlain {
 		return fmt.Errorf("unexpected echo output: decrypted values did not match expected sentinels")
 	}
-	fmt.Printf("re SpawnSecret: %s\n", output["SpawnSecret"])
-	fmt.Printf("re Secret: %s\n", output["Secret"])
-	fmt.Printf("re Plain: %s\n", output["Plain"])
 
 	rawMessage, err := s.Client.GetMessage(msgRes.Id)
 	if err != nil {
@@ -92,11 +108,14 @@ func encryptTagsCmd() error {
 		return fmt.Errorf("reserved encrypted tag rejected=false")
 	}
 
-	fmt.Println("E2E encrypted tags passed")
-	fmt.Printf("RAW spawn encrypted=%v plaintext_leaked=%v\n", spawnEncrypted, spawnLeaked)
-	fmt.Printf("RAW message encrypted=%v plaintext_leaked=%v\n", messageEncrypted, messageLeaked)
-	fmt.Printf("RESULT decrypted=true Secret=<redacted> SpawnSecret=<redacted> Plain=%s\n", output["Plain"])
-	fmt.Printf("reserved encrypted tag rejected=%v\n", reservedRejected)
+	printEncryptedTagsSuccess(os.Stdout, encryptedTagsSummary{
+		SpawnEncrypted:   spawnEncrypted,
+		SpawnLeaked:      spawnLeaked,
+		MessageEncrypted: messageEncrypted,
+		MessageLeaked:    messageLeaked,
+		ReservedRejected: reservedRejected,
+		Plain:            output["Plain"],
+	})
 	return nil
 }
 
