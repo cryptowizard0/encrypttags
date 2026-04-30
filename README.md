@@ -44,8 +44,39 @@ Expected success output includes:
 E2E encrypted tags passed
 RAW spawn encrypted=true plaintext_leaked=false
 RAW message encrypted=true plaintext_leaked=false
+PROCESS pid=<process-id>
 reserved encrypted tag rejected=true
 ```
+
+## Checkpoint Validation
+
+After `go run ./examples encrypttags` prints `PROCESS pid=<process-id>`, use that process id to validate the generated checkpoint file:
+
+```bash
+go run ./examples checkpoint <process-id>
+```
+
+Expected output:
+
+```text
+CHECKPOINT encrypted=true plaintext_leaked=false
+```
+
+This checks the latest matching `ckp/ckp-*.json` bundle item, decodes the checkpoint snapshot, confirms the encrypted `SpawnSecret` tag is still stored as ciphertext, and fails if either encrypted sentinel appears in checkpoint JSON as plaintext.
+
+After restarting the node with the checkpoint present, verify the restored process can still decrypt a new encrypted message tag:
+
+```bash
+go run ./examples checkpoint-restore <process-id>
+```
+
+Expected output:
+
+```text
+CHECKPOINT restore_decrypted=true
+```
+
+Use `ENCRYPTTAGS_CKP_DIR` to inspect a non-default checkpoint directory and `ENCRYPTTAGS_KEY_TYPE` to override the expected cipher key type for offline fixture checks.
 
 ## Configuration
 
