@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -29,11 +30,42 @@ type checkpointVerification struct {
 	PlaintextLeaked bool
 }
 
-func checkpointDir() string {
+func checkpointDirs() []string {
 	if dir := os.Getenv("ENCRYPTTAGS_CKP_DIR"); dir != "" {
-		return dir
+		return []string{dir}
 	}
-	return "./ckp"
+	candidates := []string{
+		"./ckp",
+		"../ckp",
+		"cmd/ckp",
+		"../cmd/ckp",
+	}
+	if _, file, _, ok := runtime.Caller(0); ok {
+		repoRoot := filepath.Dir(filepath.Dir(file))
+		candidates = append(candidates,
+			filepath.Join(repoRoot, "ckp"),
+			filepath.Join(repoRoot, "cmd", "ckp"),
+		)
+	}
+	return uniqueCheckpointDirs(candidates)
+}
+
+func uniqueCheckpointDirs(candidates []string) []string {
+	dirs := make([]string, 0, len(candidates))
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		dir := filepath.Clean(candidate)
+		key := dir
+		if abs, err := filepath.Abs(dir); err == nil {
+			key = abs
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		dirs = append(dirs, dir)
+	}
+	return dirs
 }
 
 func expectedCheckpointKeyType() (string, error) {
@@ -109,6 +141,28 @@ func findCheckpointForProcess(dir, processID string) (checkpointMatch, error) {
 	return best, nil
 }
 
+func findCheckpointForProcessInDirs(dirs []string, processID string) (checkpointMatch, error) {
+	var best checkpointMatch
+	searched := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		searched = append(searched, dir)
+		match, err := findCheckpointForProcess(dir, processID)
+		if err != nil {
+			if strings.Contains(err.Error(), "checkpoint not found") {
+				continue
+			}
+			return checkpointMatch{}, err
+		}
+		if best.Path == "" || match.modTime.After(best.modTime) {
+			best = match
+		}
+	}
+	if best.Path == "" {
+		return checkpointMatch{}, fmt.Errorf("checkpoint not found for process %s in %s", processID, strings.Join(searched, ", "))
+	}
+	return best, nil
+}
+
 func verifyEncryptedCheckpoint(snapshot vmmSchema.Snapshot, rawSnapshotJSON []byte, processID, keyType string) (checkpointVerification, error) {
 	result := checkpointVerification{}
 	if snapshot.Env.Meta.Pid != processID {
@@ -152,7 +206,7 @@ func checkpointCmd(w io.Writer, args []string) error {
 	if err != nil {
 		return fmt.Errorf("determine checkpoint key type: %w", err)
 	}
-	match, err := findCheckpointForProcess(checkpointDir(), args[0])
+	match, err := findCheckpointForProcessInDirs(checkpointDirs(), args[0])
 	if err != nil {
 		return err
 	}

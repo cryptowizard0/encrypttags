@@ -76,7 +76,7 @@ Expected output:
 CHECKPOINT restore_decrypted=true
 ```
 
-Use `ENCRYPTTAGS_CKP_DIR` to inspect a non-default checkpoint directory and `ENCRYPTTAGS_KEY_TYPE` to override the expected cipher key type for offline fixture checks.
+By default, the checkpoint command searches the common local run directories, including `./ckp`, `../ckp`, `cmd/ckp`, and `../cmd/ckp`, so it works whether you run examples from the repo root or from `examples/` after starting the node from `cmd/`. Use `ENCRYPTTAGS_CKP_DIR` to inspect a specific checkpoint directory and `ENCRYPTTAGS_KEY_TYPE` to override the expected cipher key type for offline fixture checks.
 
 ## Configuration
 

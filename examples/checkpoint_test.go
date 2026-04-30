@@ -120,6 +120,22 @@ func TestFindCheckpointForProcessRejectsMismatchedProcess(t *testing.T) {
 	require.Contains(t, err.Error(), "checkpoint not found")
 }
 
+func TestFindCheckpointForProcessInDirsSearchesMultipleDirs(t *testing.T) {
+	root := t.TempDir()
+	emptyDir := filepath.Join(root, "examples", "ckp")
+	cmdDir := filepath.Join(root, "cmd", "ckp")
+	require.NoError(t, os.MkdirAll(emptyDir, 0755))
+	require.NoError(t, os.MkdirAll(cmdDir, 0755))
+	expectedPath := writeCheckpointFileForTest(t, cmdDir, "ckp-process.json", checkpointItemForTest(t, checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
+		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+	}, nil)))
+
+	found, err := findCheckpointForProcessInDirs([]string{emptyDir, cmdDir}, checkpointTestPid)
+
+	require.NoError(t, err)
+	require.Equal(t, expectedPath, found.Path)
+}
+
 func TestLoadCheckpointItemRejectsMalformedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ckp-bad.json")
 	require.NoError(t, os.WriteFile(path, []byte("{bad json"), 0644))

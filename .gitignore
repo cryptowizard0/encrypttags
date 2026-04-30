@@ -1,5 +1,6 @@
 /build/
 /ckp/
+/cmd/ckp/
 /mod/
 /logs/
 /.worktrees/
