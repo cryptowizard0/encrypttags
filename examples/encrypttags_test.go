@@ -91,6 +91,7 @@ func TestPrintEncryptedTagsSuccessRedactsSecrets(t *testing.T) {
 		MessageEncrypted: true,
 		MessageLeaked:    false,
 		ReservedRejected: true,
+		ProcessID:        "process-id",
 		Plain:            "plain-e2e",
 	})
 
@@ -98,6 +99,7 @@ func TestPrintEncryptedTagsSuccessRedactsSecrets(t *testing.T) {
 	require.Contains(t, output, "E2E encrypted tags passed")
 	require.Contains(t, output, "RAW spawn encrypted=true plaintext_leaked=false")
 	require.Contains(t, output, "RAW message encrypted=true plaintext_leaked=false")
+	require.Contains(t, output, "PROCESS pid=process-id")
 	require.Contains(t, output, "RESULT decrypted=true Secret=<redacted> SpawnSecret=<redacted> Plain=plain-e2e")
 	require.Contains(t, output, "reserved encrypted tag rejected=true")
 	require.NotContains(t, output, "spawn-secret-e2e")

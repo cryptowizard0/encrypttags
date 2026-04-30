@@ -20,6 +20,7 @@ type encryptedTagsSummary struct {
 	MessageEncrypted bool
 	MessageLeaked    bool
 	ReservedRejected bool
+	ProcessID        string
 	Plain            string
 }
 
@@ -27,6 +28,9 @@ func printEncryptedTagsSuccess(w io.Writer, summary encryptedTagsSummary) {
 	fmt.Fprintln(w, "E2E encrypted tags passed")
 	fmt.Fprintf(w, "RAW spawn encrypted=%v plaintext_leaked=%v\n", summary.SpawnEncrypted, summary.SpawnLeaked)
 	fmt.Fprintf(w, "RAW message encrypted=%v plaintext_leaked=%v\n", summary.MessageEncrypted, summary.MessageLeaked)
+	if summary.ProcessID != "" {
+		fmt.Fprintf(w, "PROCESS pid=%s\n", summary.ProcessID)
+	}
 	fmt.Fprintf(w, "RESULT decrypted=true Secret=<redacted> SpawnSecret=<redacted> Plain=%s\n", summary.Plain)
 	fmt.Fprintf(w, "reserved encrypted tag rejected=%v\n", summary.ReservedRejected)
 }
@@ -107,6 +111,7 @@ func encryptTagsCmd() error {
 		MessageEncrypted: messageEncrypted,
 		MessageLeaked:    messageLeaked,
 		ReservedRejected: reservedRejected,
+		ProcessID:        spawnRes.Id,
 		Plain:            output["Plain"],
 	})
 	return nil
