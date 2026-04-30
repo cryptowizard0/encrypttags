@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -135,6 +136,30 @@ func TestExpectedCheckpointKeyTypeUsesEnvOverride(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, tagcrypto.KeyTypeArweaveRSAOAEP, keyType)
+}
+
+func TestCheckpointCmdPrintsEncryptedStatus(t *testing.T) {
+	dir := t.TempDir()
+	writeCheckpointFileForTest(t, dir, "ckp-process.json", checkpointItemForTest(t, checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
+		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+	}, nil)))
+	t.Setenv("ENCRYPTTAGS_CKP_DIR", dir)
+	t.Setenv("ENCRYPTTAGS_KEY_TYPE", tagcrypto.KeyTypeEthereumECIES)
+	var buf bytes.Buffer
+
+	err := checkpointCmd(&buf, []string{checkpointTestPid})
+
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), "CHECKPOINT encrypted=true plaintext_leaked=false")
+}
+
+func TestCheckpointCmdRequiresPid(t *testing.T) {
+	var buf bytes.Buffer
+
+	err := checkpointCmd(&buf, nil)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "usage")
 }
 
 func checkpointSnapshotForTest(pid string, tags []goarSchema.Tag, params map[string]string) vmmSchema.Snapshot {

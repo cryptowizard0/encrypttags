@@ -25,7 +25,7 @@ var (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("please input cmd, ex: init, module, encrypttags")
+		fmt.Println("please input cmd, ex: init, module, encrypttags, checkpoint, checkpoint-restore")
 		os.Exit(1)
 	}
 
@@ -46,6 +46,11 @@ func main() {
 		}
 	case "encrypttags":
 		if err := encryptTagsCmd(); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	case "checkpoint":
+		if err := checkpointCmd(os.Stdout, os.Args[2:]); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}

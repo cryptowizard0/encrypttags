@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -141,4 +142,24 @@ func verifyEncryptedCheckpoint(snapshot vmmSchema.Snapshot, rawSnapshotJSON []by
 		return result, fmt.Errorf("checkpoint missing encrypted SpawnSecret tag")
 	}
 	return result, nil
+}
+
+func checkpointCmd(w io.Writer, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: checkpoint <pid>")
+	}
+	keyType, err := expectedCheckpointKeyType()
+	if err != nil {
+		return fmt.Errorf("determine checkpoint key type: %w", err)
+	}
+	match, err := findCheckpointForProcess(checkpointDir(), args[0])
+	if err != nil {
+		return err
+	}
+	result, err := verifyEncryptedCheckpoint(match.Snapshot, match.RawSnapshotJSON, args[0], keyType)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "CHECKPOINT encrypted=%v plaintext_leaked=%v\n", result.Encrypted, result.PlaintextLeaked)
+	return nil
 }
