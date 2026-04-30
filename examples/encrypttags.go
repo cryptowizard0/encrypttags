@@ -79,16 +79,9 @@ func encryptTagsCmd() error {
 		return fmt.Errorf("send echo message: %w", err)
 	}
 
-	var result vmmSchema.VmmResult
-	if err := json.Unmarshal([]byte(msgRes.Message), &result); err != nil {
-		return fmt.Errorf("decode message result: %w", err)
-	}
-	output, err := outputMap(result.Output)
+	output, err := verifyEchoMessage(msgRes.Message)
 	if err != nil {
 		return err
-	}
-	if output["SpawnSecret"] != e2eSpawnSecret || output["Secret"] != e2eMessageSecret || output["Plain"] != e2ePlain {
-		return fmt.Errorf("unexpected echo output: decrypted values did not match expected sentinels")
 	}
 
 	rawMessage, err := s.Client.GetMessage(msgRes.Id)
@@ -135,6 +128,21 @@ func sendReservedEncryptedTagToNode(pid string) error {
 	}
 	_, _, err = s.Client.Send(item.Binary)
 	return err
+}
+
+func verifyEchoMessage(message string) (map[string]string, error) {
+	var result vmmSchema.VmmResult
+	if err := json.Unmarshal([]byte(message), &result); err != nil {
+		return nil, fmt.Errorf("decode message result: %w", err)
+	}
+	output, err := outputMap(result.Output)
+	if err != nil {
+		return nil, err
+	}
+	if output["SpawnSecret"] != e2eSpawnSecret || output["Secret"] != e2eMessageSecret || output["Plain"] != e2ePlain {
+		return nil, fmt.Errorf("unexpected echo output: decrypted values did not match expected sentinels")
+	}
+	return output, nil
 }
 
 func encryptedTagStored(tags []goarSchema.Tag, name, plaintext, keyType string) (encrypted bool, leaked bool) {

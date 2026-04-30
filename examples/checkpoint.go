@@ -163,3 +163,21 @@ func checkpointCmd(w io.Writer, args []string) error {
 	fmt.Fprintf(w, "CHECKPOINT encrypted=%v plaintext_leaked=%v\n", result.Encrypted, result.PlaintextLeaked)
 	return nil
 }
+
+func checkpointRestoreCmd(w io.Writer, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: checkpoint-restore <pid>")
+	}
+	msgRes, err := s.SendMessageAndWait(args[0], "", []goarSchema.Tag{
+		{Name: tagcrypto.EncryptedTagPrefix + "Secret", Value: e2eMessageSecret},
+		{Name: "Plain", Value: e2ePlain},
+	})
+	if err != nil {
+		return fmt.Errorf("send restore check message: %w", err)
+	}
+	if _, err := verifyEchoMessage(msgRes.Message); err != nil {
+		return err
+	}
+	fmt.Fprintln(w, "CHECKPOINT restore_decrypted=true")
+	return nil
+}

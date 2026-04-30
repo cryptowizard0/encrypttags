@@ -162,6 +162,43 @@ func TestCheckpointCmdRequiresPid(t *testing.T) {
 	require.Contains(t, err.Error(), "usage")
 }
 
+func TestVerifyEchoMessageAcceptsExpectedOutput(t *testing.T) {
+	message := echoResultMessageForTest(t, map[string]string{
+		"SpawnSecret": e2eSpawnSecret,
+		"Secret":      e2eMessageSecret,
+		"Plain":       e2ePlain,
+	})
+
+	output, err := verifyEchoMessage(message)
+
+	require.NoError(t, err)
+	require.Equal(t, e2eSpawnSecret, output["SpawnSecret"])
+	require.Equal(t, e2eMessageSecret, output["Secret"])
+	require.Equal(t, e2ePlain, output["Plain"])
+}
+
+func TestVerifyEchoMessageRejectsUnexpectedOutput(t *testing.T) {
+	message := echoResultMessageForTest(t, map[string]string{
+		"SpawnSecret": "missing-after-restore",
+		"Secret":      e2eMessageSecret,
+		"Plain":       e2ePlain,
+	})
+
+	_, err := verifyEchoMessage(message)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unexpected echo output")
+}
+
+func TestCheckpointRestoreCmdRequiresPid(t *testing.T) {
+	var buf bytes.Buffer
+
+	err := checkpointRestoreCmd(&buf, nil)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "usage")
+}
+
 func checkpointSnapshotForTest(pid string, tags []goarSchema.Tag, params map[string]string) vmmSchema.Snapshot {
 	if params == nil {
 		params = map[string]string{}
@@ -204,4 +241,11 @@ func writeCheckpointFileForTest(t *testing.T, dir, name string, item goarSchema.
 
 func checkpointCipherValue(keyType string) string {
 	return tagcrypto.CipherValuePrefix + ":" + keyType + ":ciphertext"
+}
+
+func echoResultMessageForTest(t *testing.T, output map[string]string) string {
+	t.Helper()
+	by, err := json.Marshal(vmmSchema.VmmResult{Output: output})
+	require.NoError(t, err)
+	return string(by)
 }

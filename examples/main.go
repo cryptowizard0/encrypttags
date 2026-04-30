@@ -54,6 +54,11 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+	case "checkpoint-restore":
+		if err := checkpointRestoreCmd(os.Stdout, os.Args[2:]); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Printf("unknown cmd: %s\n", os.Args[1])
 		os.Exit(1)
