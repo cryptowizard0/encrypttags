@@ -50,7 +50,7 @@ reserved encrypted tag rejected=true
 
 ## Checkpoint Validation
 
-After `go run ./examples encrypttags` prints `PROCESS pid=<process-id>`, use that process id to validate the generated checkpoint file:
+Checkpoint files are written when the node shuts down. After `go run ./examples encrypttags` prints `PROCESS pid=<process-id>`, stop the running node with interrupt so it writes `ckp/ckp-*.json`, then validate the generated checkpoint file:
 
 ```bash
 go run ./examples checkpoint <process-id>
@@ -64,7 +64,7 @@ CHECKPOINT encrypted=true plaintext_leaked=false
 
 This checks the latest matching `ckp/ckp-*.json` bundle item, decodes the checkpoint snapshot, confirms the encrypted `SpawnSecret` tag is still stored as ciphertext, and fails if either encrypted sentinel appears in checkpoint JSON as plaintext.
 
-After restarting the node with the checkpoint present, verify the restored process can still decrypt a new encrypted message tag:
+After restarting the node with the checkpoint present, verify the restored process can still decrypt the encrypted spawn tag and a new encrypted message tag:
 
 ```bash
 go run ./examples checkpoint-restore <process-id>

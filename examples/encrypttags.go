@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	hymxSchema "github.com/hymatrix/hymx/schema"
+	"github.com/hymatrix/hymx/sdk"
 	"github.com/hymatrix/hymx/utils"
 	"github.com/hymatrix/hymx/utils/tagcrypto"
 	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
@@ -97,9 +98,17 @@ func encryptTagsCmd() error {
 		return fmt.Errorf("raw message encrypted=%v plaintext_leaked=%v", messageEncrypted, messageLeaked)
 	}
 
-	reservedRejected := false
-	if err := sendReservedEncryptedTagToNode(spawnRes.Id); err != nil && strings.Contains(err.Error(), "400") {
-		reservedRejected = true
+	reservedSpawnRes, err := s.SpawnAndWait(echoModule, s.GetAddress(), []goarSchema.Tag{
+		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: e2eSpawnSecret},
+	})
+	if err != nil {
+		return fmt.Errorf("spawn reserved check echo: %w", err)
+	}
+
+	reservedResult, reservedErr := sendReservedEncryptedTagToNode(reservedSpawnRes.Id)
+	reservedRejected := reservedEncryptedTagRejected(reservedErr, reservedResult)
+	if reservedErr != nil && !reservedRejected {
+		return fmt.Errorf("send reserved encrypted tag: %w", reservedErr)
 	}
 	if !reservedRejected {
 		return fmt.Errorf("reserved encrypted tag rejected=false")
@@ -117,28 +126,47 @@ func encryptTagsCmd() error {
 	return nil
 }
 
-func sendReservedEncryptedTagToNode(pid string) error {
+func sendReservedEncryptedTagToNode(pid string) (vmmSchema.VmmResult, error) {
 	msgTags, err := utils.MessageToTags(hymxSchema.Message{
 		Base: hymxSchema.DefaultBaseMessage,
 	})
 	if err != nil {
-		return err
+		return vmmSchema.VmmResult{}, err
 	}
 	msgTags = utils.MergeTags(msgTags, []goarSchema.Tag{
 		{Name: tagcrypto.EncryptedTagPrefix + "Type", Value: tagcrypto.CipherValuePrefix + ":" + tagcrypto.KeyTypeEthereumECIES + ":bad"},
 	})
 	item, err := s.Bundler.CreateAndSignItem([]byte{}, pid, "", msgTags)
 	if err != nil {
-		return err
+		return vmmSchema.VmmResult{}, err
 	}
-	_, _, err = s.Client.Send(item.Binary)
-	return err
+	res, redirectedURL, err := s.Client.Send(item.Binary)
+	if err != nil {
+		return vmmSchema.VmmResult{}, err
+	}
+
+	realSDK := s
+	if redirectedURL != "" {
+		realSDK = sdk.NewFromBundler(redirectedURL, s.Bundler)
+		defer realSDK.Close()
+	}
+	return realSDK.ResultAndWait(pid, res.Id)
+}
+
+func reservedEncryptedTagRejected(err error, result vmmSchema.VmmResult) bool {
+	if err != nil && strings.Contains(err.Error(), "400") {
+		return true
+	}
+	return strings.Contains(result.Error, "encrypted tag uses reserved name")
 }
 
 func verifyEchoMessage(message string) (map[string]string, error) {
 	var result vmmSchema.VmmResult
 	if err := json.Unmarshal([]byte(message), &result); err != nil {
 		return nil, fmt.Errorf("decode message result: %w", err)
+	}
+	if result.Error != "" {
+		return nil, fmt.Errorf("vmm result error: %s", result.Error)
 	}
 	output, err := outputMap(result.Output)
 	if err != nil {

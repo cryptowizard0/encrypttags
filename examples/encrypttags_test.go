@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/hymatrix/hymx/utils/tagcrypto"
+	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
 	goarSchema "github.com/permadao/goar/schema"
 	"github.com/stretchr/testify/require"
 )
@@ -104,4 +106,24 @@ func TestPrintEncryptedTagsSuccessRedactsSecrets(t *testing.T) {
 	require.Contains(t, output, "reserved encrypted tag rejected=true")
 	require.NotContains(t, output, "spawn-secret-e2e")
 	require.NotContains(t, output, "message-secret-e2e")
+}
+
+func TestReservedEncryptedTagRejectedAcceptsHTTP400(t *testing.T) {
+	rejected := reservedEncryptedTagRejected(errors.New("request failed: 400"), vmmSchema.VmmResult{})
+
+	require.True(t, rejected)
+}
+
+func TestReservedEncryptedTagRejectedAcceptsVMMResultError(t *testing.T) {
+	rejected := reservedEncryptedTagRejected(nil, vmmSchema.VmmResult{
+		Error: "encrypted tag uses reserved name: Type",
+	})
+
+	require.True(t, rejected)
+}
+
+func TestReservedEncryptedTagRejectedRejectsSuccessfulResult(t *testing.T) {
+	rejected := reservedEncryptedTagRejected(nil, vmmSchema.VmmResult{})
+
+	require.False(t, rejected)
 }

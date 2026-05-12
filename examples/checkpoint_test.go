@@ -19,9 +19,13 @@ import (
 const checkpointTestPid = "process-id"
 
 func TestVerifyEncryptedCheckpointAcceptsEncryptedSpawnTag(t *testing.T) {
+	cipherValue := checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
-	}, map[string]string{"Plain": "plain-e2e"})
+		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: cipherValue},
+	}, map[string]string{
+		tagcrypto.EncryptedTagPrefix + "SpawnSecret": cipherValue,
+		"Plain": "plain-e2e",
+	})
 	raw := checkpointSnapshotJSON(t, snap)
 
 	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
@@ -29,6 +33,18 @@ func TestVerifyEncryptedCheckpointAcceptsEncryptedSpawnTag(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Encrypted)
 	require.False(t, result.PlaintextLeaked)
+}
+
+func TestVerifyEncryptedCheckpointRejectsPlainSpawnSecretParam(t *testing.T) {
+	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
+		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+	}, map[string]string{"SpawnSecret": e2eSpawnSecret})
+	raw := checkpointSnapshotJSON(t, snap)
+
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+
+	require.Error(t, err)
+	require.True(t, result.PlaintextLeaked)
 }
 
 func TestVerifyEncryptedCheckpointRejectsSpawnSecretLeak(t *testing.T) {
@@ -136,6 +152,15 @@ func TestFindCheckpointForProcessInDirsSearchesMultipleDirs(t *testing.T) {
 	require.Equal(t, expectedPath, found.Path)
 }
 
+func TestFindCheckpointForProcessInDirsExplainsShutdownRequirement(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := findCheckpointForProcessInDirs([]string{dir}, checkpointTestPid)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stop the node")
+}
+
 func TestLoadCheckpointItemRejectsMalformedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ckp-bad.json")
 	require.NoError(t, os.WriteFile(path, []byte("{bad json"), 0644))
@@ -204,6 +229,17 @@ func TestVerifyEchoMessageRejectsUnexpectedOutput(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected echo output")
+}
+
+func TestVerifyEchoMessageReportsVMMResultError(t *testing.T) {
+	by, err := json.Marshal(vmmSchema.VmmResult{Error: "err_invalid_nonce"})
+	require.NoError(t, err)
+
+	_, err = verifyEchoMessage(string(by))
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "vmm result error")
+	require.Contains(t, err.Error(), "err_invalid_nonce")
 }
 
 func TestCheckpointRestoreCmdRequiresPid(t *testing.T) {

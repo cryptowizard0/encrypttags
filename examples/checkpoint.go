@@ -158,7 +158,7 @@ func findCheckpointForProcessInDirs(dirs []string, processID string) (checkpoint
 		}
 	}
 	if best.Path == "" {
-		return checkpointMatch{}, fmt.Errorf("checkpoint not found for process %s in %s", processID, strings.Join(searched, ", "))
+		return checkpointMatch{}, fmt.Errorf("checkpoint not found for process %s in %s; stop the node first so hymx writes ckp/ckp-*.json, then rerun checkpoint or set ENCRYPTTAGS_CKP_DIR", processID, strings.Join(searched, ", "))
 	}
 	return best, nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/cryptowizard0/encrypttags/echo/schema"
+	"github.com/hymatrix/hymx/utils/tagcrypto"
 	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
 )
 
@@ -13,7 +14,7 @@ type Echo struct {
 
 func New(env vmmSchema.Env) (*Echo, error) {
 	return &Echo{
-		spawnSecret: env.Meta.Params["SpawnSecret"],
+		spawnSecret: encryptedParam(env.Meta.DecryptedParams, "SpawnSecret"),
 	}, nil
 }
 
@@ -25,7 +26,7 @@ func (e *Echo) Apply(_ string, meta vmmSchema.Meta) vmmSchema.Result {
 	return vmmSchema.Result{
 		Output: map[string]string{
 			"SpawnSecret": e.spawnSecret,
-			"Secret":      meta.Params["Secret"],
+			"Secret":      encryptedParam(meta.DecryptedParams, "Secret"),
 			"Plain":       meta.Params["Plain"],
 		},
 	}
@@ -49,4 +50,8 @@ func (e *Echo) Restore(data string) error {
 
 func (e *Echo) Close() error {
 	return nil
+}
+
+func encryptedParam(params map[string]string, name string) string {
+	return params[tagcrypto.EncryptedTagPrefix+name]
 }
