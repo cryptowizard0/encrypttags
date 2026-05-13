@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	hymxSchema "github.com/hymatrix/hymx/schema"
-	"github.com/hymatrix/hymx/utils/tagcrypto"
 	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
 	goarSchema "github.com/permadao/goar/schema"
 	goarUtils "github.com/permadao/goar/utils"
@@ -18,91 +18,92 @@ import (
 
 const checkpointTestPid = "process-id"
 
-func TestVerifyEncryptedCheckpointAcceptsEncryptedSpawnTag(t *testing.T) {
-	cipherValue := checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)
+func TestVerifyEncryptedCheckpointAcceptsEncryptedSecretTag(t *testing.T) {
+	cipherValue := checkpointCipherValue()
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: cipherValue},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: cipherValue},
 	}, map[string]string{
-		tagcrypto.EncryptedTagPrefix + "SpawnSecret": cipherValue,
-		"Plain": "plain-e2e",
+		vmmSchema.EncryptedTagPrefix + "Secret": cipherValue,
+		"Plain":                                 "plain-e2e",
 	})
 	raw := checkpointSnapshotJSON(t, snap)
 
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
 
 	require.NoError(t, err)
 	require.True(t, result.Encrypted)
 	require.False(t, result.PlaintextLeaked)
 }
 
-func TestVerifyEncryptedCheckpointRejectsPlainSpawnSecretParam(t *testing.T) {
+func TestVerifyEncryptedCheckpointRejectsPlainMessageSecretParam(t *testing.T) {
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
-	}, map[string]string{"SpawnSecret": e2eSpawnSecret})
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
+	}, map[string]string{"Secret": e2eMessageSecret})
 	raw := checkpointSnapshotJSON(t, snap)
 
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
 
 	require.Error(t, err)
 	require.True(t, result.PlaintextLeaked)
 }
 
-func TestVerifyEncryptedCheckpointRejectsSpawnSecretLeak(t *testing.T) {
+func TestVerifyEncryptedCheckpointRejectsMessageSecretLeakFromRawJSON(t *testing.T) {
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
-	}, map[string]string{"Debug": e2eSpawnSecret})
-	raw := checkpointSnapshotJSON(t, snap)
-
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
-
-	require.Error(t, err)
-	require.True(t, result.PlaintextLeaked)
-}
-
-func TestVerifyEncryptedCheckpointRejectsMessageSecretLeak(t *testing.T) {
-	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, map[string]string{"Debug": e2eMessageSecret})
 	raw := checkpointSnapshotJSON(t, snap)
 
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
 
 	require.Error(t, err)
 	require.True(t, result.PlaintextLeaked)
 }
 
-func TestVerifyEncryptedCheckpointRejectsPlainSpawnSecretTag(t *testing.T) {
+func TestVerifyEncryptedCheckpointRejectsMessageSecretLeakInParams(t *testing.T) {
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: "SpawnSecret", Value: e2eSpawnSecret},
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
+	}, map[string]string{"Debug": e2eMessageSecret})
+	raw := checkpointSnapshotJSON(t, snap)
+
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
+
+	require.Error(t, err)
+	require.True(t, result.PlaintextLeaked)
+}
+
+func TestVerifyEncryptedCheckpointRejectsPlainMessageSecretTag(t *testing.T) {
+	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
+		{Name: "Secret", Value: e2eMessageSecret},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, map[string]string{})
 	raw := checkpointSnapshotJSON(t, snap)
 
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
 
 	require.Error(t, err)
 	require.True(t, result.PlaintextLeaked)
 }
 
-func TestVerifyEncryptedCheckpointRejectsMissingEncryptedSpawnTag(t *testing.T) {
+func TestVerifyEncryptedCheckpointAcceptsMissingEncryptedSecretTag(t *testing.T) {
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
 		{Name: "Plain", Value: "plain-e2e"},
 	}, map[string]string{})
 	raw := checkpointSnapshotJSON(t, snap)
 
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
 
-	require.Error(t, err)
+	require.NoError(t, err)
 	require.False(t, result.Encrypted)
+	require.False(t, result.PlaintextLeaked)
 }
 
-func TestVerifyEncryptedCheckpointRejectsWrongCipherKeyType(t *testing.T) {
+func TestVerifyEncryptedCheckpointRejectsMalformedCiphertext(t *testing.T) {
 	snap := checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeArweaveRSAOAEP)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: "not base64"},
 	}, map[string]string{})
 	raw := checkpointSnapshotJSON(t, snap)
 
-	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid, tagcrypto.KeyTypeEthereumECIES)
+	result, err := verifyEncryptedCheckpoint(snap, raw, checkpointTestPid)
 
 	require.Error(t, err)
 	require.False(t, result.Encrypted)
@@ -111,10 +112,10 @@ func TestVerifyEncryptedCheckpointRejectsWrongCipherKeyType(t *testing.T) {
 func TestFindCheckpointForProcessSelectsMatchingCheckpoint(t *testing.T) {
 	dir := t.TempDir()
 	writeCheckpointFileForTest(t, dir, "ckp-other.json", checkpointItemForTest(t, checkpointSnapshotForTest("other-process", []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, nil)))
 	expectedPath := writeCheckpointFileForTest(t, dir, "ckp-process.json", checkpointItemForTest(t, checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, nil)))
 
 	found, err := findCheckpointForProcess(dir, checkpointTestPid)
@@ -127,7 +128,7 @@ func TestFindCheckpointForProcessSelectsMatchingCheckpoint(t *testing.T) {
 func TestFindCheckpointForProcessRejectsMismatchedProcess(t *testing.T) {
 	dir := t.TempDir()
 	writeCheckpointFileForTest(t, dir, "ckp-other.json", checkpointItemForTest(t, checkpointSnapshotForTest("other-process", []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, nil)))
 
 	_, err := findCheckpointForProcess(dir, checkpointTestPid)
@@ -143,7 +144,7 @@ func TestFindCheckpointForProcessInDirsSearchesMultipleDirs(t *testing.T) {
 	require.NoError(t, os.MkdirAll(emptyDir, 0755))
 	require.NoError(t, os.MkdirAll(cmdDir, 0755))
 	expectedPath := writeCheckpointFileForTest(t, cmdDir, "ckp-process.json", checkpointItemForTest(t, checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, nil)))
 
 	found, err := findCheckpointForProcessInDirs([]string{emptyDir, cmdDir}, checkpointTestPid)
@@ -170,28 +171,18 @@ func TestLoadCheckpointItemRejectsMalformedFile(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestExpectedCheckpointKeyTypeUsesEnvOverride(t *testing.T) {
-	t.Setenv("ENCRYPTTAGS_KEY_TYPE", tagcrypto.KeyTypeArweaveRSAOAEP)
-
-	keyType, err := expectedCheckpointKeyType()
-
-	require.NoError(t, err)
-	require.Equal(t, tagcrypto.KeyTypeArweaveRSAOAEP, keyType)
-}
-
 func TestCheckpointCmdPrintsEncryptedStatus(t *testing.T) {
 	dir := t.TempDir()
 	writeCheckpointFileForTest(t, dir, "ckp-process.json", checkpointItemForTest(t, checkpointSnapshotForTest(checkpointTestPid, []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "SpawnSecret", Value: checkpointCipherValue(tagcrypto.KeyTypeEthereumECIES)},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: checkpointCipherValue()},
 	}, nil)))
 	t.Setenv("ENCRYPTTAGS_CKP_DIR", dir)
-	t.Setenv("ENCRYPTTAGS_KEY_TYPE", tagcrypto.KeyTypeEthereumECIES)
 	var buf bytes.Buffer
 
 	err := checkpointCmd(&buf, []string{checkpointTestPid})
 
 	require.NoError(t, err)
-	require.Contains(t, buf.String(), "CHECKPOINT encrypted=true plaintext_leaked=false")
+	require.Contains(t, buf.String(), "CHECKPOINT plaintext_leaked=false")
 }
 
 func TestCheckpointCmdRequiresPid(t *testing.T) {
@@ -205,24 +196,21 @@ func TestCheckpointCmdRequiresPid(t *testing.T) {
 
 func TestVerifyEchoMessageAcceptsExpectedOutput(t *testing.T) {
 	message := echoResultMessageForTest(t, map[string]string{
-		"SpawnSecret": e2eSpawnSecret,
-		"Secret":      e2eMessageSecret,
-		"Plain":       e2ePlain,
+		"Secret": e2eMessageSecret,
+		"Plain":  e2ePlain,
 	})
 
 	output, err := verifyEchoMessage(message)
 
 	require.NoError(t, err)
-	require.Equal(t, e2eSpawnSecret, output["SpawnSecret"])
 	require.Equal(t, e2eMessageSecret, output["Secret"])
 	require.Equal(t, e2ePlain, output["Plain"])
 }
 
 func TestVerifyEchoMessageRejectsUnexpectedOutput(t *testing.T) {
 	message := echoResultMessageForTest(t, map[string]string{
-		"SpawnSecret": "missing-after-restore",
-		"Secret":      e2eMessageSecret,
-		"Plain":       e2ePlain,
+		"Secret": "missing-after-restore",
+		"Plain":  e2ePlain,
 	})
 
 	_, err := verifyEchoMessage(message)
@@ -291,8 +279,8 @@ func writeCheckpointFileForTest(t *testing.T, dir, name string, item goarSchema.
 	return path
 }
 
-func checkpointCipherValue(keyType string) string {
-	return tagcrypto.CipherValuePrefix + ":" + keyType + ":ciphertext"
+func checkpointCipherValue() string {
+	return base64.StdEncoding.EncodeToString([]byte("ciphertext"))
 }
 
 func echoResultMessageForTest(t *testing.T, output map[string]string) string {

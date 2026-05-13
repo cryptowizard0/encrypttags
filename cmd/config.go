@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/everFinance/goether"
+	"github.com/hymatrix/hymx/cryptor"
 	nodeSchema "github.com/hymatrix/hymx/node/schema"
 	"github.com/hymatrix/hymx/schema"
-	"github.com/hymatrix/hymx/utils/tagcrypto"
 	registrySchema "github.com/hymatrix/hymx/vmm/core/registry/schema"
 	"github.com/permadao/goar"
 	"github.com/spf13/viper"
@@ -12,8 +12,7 @@ import (
 
 func LoadNodeConfig() (
 	port, ginMode, redisURL, arweaveURL, hymxURL string,
-	signer interface{},
-	bundler *goar.Bundler, nodeInfo *nodeSchema.Info, err error,
+	bundler *goar.Bundler, nodeInfo *nodeSchema.Info, decryptor *cryptor.Cryptor, err error,
 ) {
 	port = viper.GetString("port")
 	ginMode = viper.GetString("ginMode")
@@ -23,8 +22,12 @@ func LoadNodeConfig() (
 	prvKey := viper.GetString("prvKey")
 	keyfilePath := viper.GetString("keyfilePath")
 
+	var signer interface{}
 	if prvKey != "" {
 		signer, err = goether.NewSigner(prvKey)
+		if err == nil {
+			decryptor, err = cryptor.NewECCFromPrivateKey(prvKey)
+		}
 	} else {
 		signer, err = goar.NewSignerFromPath(keyfilePath)
 	}
@@ -35,9 +38,13 @@ func LoadNodeConfig() (
 	if err != nil {
 		return
 	}
-	encryptionKeyType, err := tagcrypto.KeyTypeFromSignatureType(bundler.SignType)
-	if err != nil {
-		return
+
+	var pubkey string
+	if decryptor != nil {
+		pubkey, err = decryptor.PublicKey()
+		if err != nil {
+			return
+		}
 	}
 
 	nodeInfo = &nodeSchema.Info{
@@ -51,8 +58,7 @@ func LoadNodeConfig() (
 			Desc:  viper.GetString("nodeDesc"),
 			URL:   viper.GetString("nodeURL"),
 		},
-		EncryptionPublicKey: bundler.Owner,
-		EncryptionKeyType:   encryptionKeyType,
+		EncryptionPublicKey: pubkey,
 	}
 
 	return

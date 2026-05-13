@@ -14,9 +14,7 @@ func TestEchoApplyOutputsDecryptedParams(t *testing.T) {
 		Meta: vmmSchema.Meta{
 			Params: map[string]string{
 				"Encrypted-SpawnSecret": "ciphertext",
-			},
-			DecryptedParams: map[string]string{
-				"Encrypted-SpawnSecret": "spawn-secret-e2e",
+				"SpawnSecret":           "spawn-secret-e2e",
 			},
 		},
 	})
@@ -25,10 +23,8 @@ func TestEchoApplyOutputsDecryptedParams(t *testing.T) {
 	res := vm.Apply("sender", vmmSchema.Meta{
 		Params: map[string]string{
 			"Encrypted-Secret": "ciphertext",
+			"Secret":           "message-secret-e2e",
 			"Plain":            "plain-e2e",
-		},
-		DecryptedParams: map[string]string{
-			"Encrypted-Secret": "message-secret-e2e",
 		},
 	})
 	require.NoError(t, res.Error)
@@ -68,9 +64,7 @@ func TestEchoCheckpointDoesNotStoreSecrets(t *testing.T) {
 		Meta: vmmSchema.Meta{
 			Params: map[string]string{
 				"Encrypted-SpawnSecret": "ciphertext",
-			},
-			DecryptedParams: map[string]string{
-				"Encrypted-SpawnSecret": "spawn-secret-e2e",
+				"SpawnSecret":           "spawn-secret-e2e",
 			},
 		},
 	})
@@ -90,9 +84,7 @@ func TestEchoCheckpointExcludesKnownSecretSentinels(t *testing.T) {
 		Meta: vmmSchema.Meta{
 			Params: map[string]string{
 				"Encrypted-SpawnSecret": "ciphertext",
-			},
-			DecryptedParams: map[string]string{
-				"Encrypted-SpawnSecret": "spawn-secret-e2e",
+				"SpawnSecret":           "spawn-secret-e2e",
 			},
 		},
 	})
@@ -101,10 +93,8 @@ func TestEchoCheckpointExcludesKnownSecretSentinels(t *testing.T) {
 	res := vm.Apply("sender", vmmSchema.Meta{
 		Params: map[string]string{
 			"Encrypted-Secret": "ciphertext",
+			"Secret":           "message-secret-e2e",
 			"Plain":            "plain-e2e",
-		},
-		DecryptedParams: map[string]string{
-			"Encrypted-Secret": "message-secret-e2e",
 		},
 	})
 	require.NoError(t, res.Error)
@@ -121,9 +111,7 @@ func TestEchoRestoreKeepsSpawnSecretFromRecoveredEnv(t *testing.T) {
 		Meta: vmmSchema.Meta{
 			Params: map[string]string{
 				"Encrypted-SpawnSecret": "ciphertext",
-			},
-			DecryptedParams: map[string]string{
-				"Encrypted-SpawnSecret": "spawn-secret-e2e",
+				"SpawnSecret":           "spawn-secret-e2e",
 			},
 		},
 	})
@@ -134,10 +122,8 @@ func TestEchoRestoreKeepsSpawnSecretFromRecoveredEnv(t *testing.T) {
 	res := vm.Apply("sender", vmmSchema.Meta{
 		Params: map[string]string{
 			"Encrypted-Secret": "ciphertext",
+			"Secret":           "message-secret-e2e",
 			"Plain":            "plain-e2e",
-		},
-		DecryptedParams: map[string]string{
-			"Encrypted-Secret": "message-secret-e2e",
 		},
 	})
 	output := res.Output.(map[string]string)

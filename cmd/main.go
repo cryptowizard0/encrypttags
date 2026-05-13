@@ -68,7 +68,7 @@ func run(c *cli.Context) (err error) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
-	port, ginMode, redisURL, arweaveURL, hymxURL, signer, bundler, nodeInfo, err := LoadNodeConfig()
+	port, ginMode, redisURL, arweaveURL, hymxURL, bundler, nodeInfo, decryptor, err := LoadNodeConfig()
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func run(c *cli.Context) (err error) {
 		log15.Root().SetHandler(log15.LvlFilterHandler(log15.LvlInfo, log15.StderrHandler))
 	}
 
-	n := node.New(signer, bundler, redisURL, arweaveURL, hymxURL, nodeInfo, nil)
+	n := node.New(decryptor, bundler, redisURL, arweaveURL, hymxURL, nodeInfo, nil)
 	s := server.New(n, nil)
 	if err = s.Mount(echoSchema.ModuleFormat, echo.Spawn); err != nil {
 		return err

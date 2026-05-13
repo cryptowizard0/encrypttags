@@ -1,6 +1,6 @@
 # encrypttags
 
-`encrypttags` is a standalone hymx test VM project for encrypted tag e2e coverage. It mounts a small external echo VM into a hymx node and runs a local flow that verifies encrypted spawn/message tags are only visible to hymx and the VMM as decrypted params.
+`encrypttags` is a standalone hymx test VM project for encrypted tag e2e coverage. It mounts a small external echo VM into a hymx node and runs a local flow that verifies encrypted message tags are stored as ciphertext and reach the VM as decrypted params.
 
 ## Requirements
 
@@ -14,9 +14,34 @@ The module keeps:
 replace github.com/hymatrix/hymx => ../hymx
 ```
 
-so it can test the unmerged `feature/encrypt_tags` branch.
+so it can test the local `feature/cryptor` branch.
 
 ## Run
+
+Run the full local Redis/node/checkpoint flow automatically:
+
+```bash
+./scripts/encrypttags-e2e.sh
+```
+
+The script recreates the `hype-vmdocker-redis` container, starts the node in the background, initializes token/registry, runs `encrypttags`, stops the node to write checkpoints, validates checkpoint content, restarts the node, and runs `checkpoint-restore`.
+
+Logs are saved under `.tmp/encrypttags-e2e/<timestamp>/`. To preview the commands without changing Redis or starting the node:
+
+```bash
+./scripts/encrypttags-e2e.sh --dry-run
+```
+
+Useful overrides:
+
+```bash
+REDIS_CONTAINER=hype-vmdocker-redis \
+NODE_READY_TIMEOUT=90 \
+LOG_DIR=/tmp/encrypttags-e2e \
+./scripts/encrypttags-e2e.sh
+```
+
+Manual flow:
 
 Start the node:
 
@@ -42,15 +67,14 @@ Expected success output includes:
 
 ```text
 E2E encrypted tags passed
-RAW spawn encrypted=true plaintext_leaked=false
 RAW message encrypted=true plaintext_leaked=false
 PROCESS pid=<process-id>
-reserved encrypted tag rejected=true
+RESULT decrypted=true Secret=<redacted> Plain=plain-e2e
 ```
 
 ## Checkpoint Validation
 
-Checkpoint files are written when the node shuts down. After `go run ./examples encrypttags` prints `PROCESS pid=<process-id>`, stop the running node with interrupt so it writes `ckp/ckp-*.json`, then validate the generated checkpoint file:
+Checkpoint files are written when the node shuts down. After `go run ./examples encrypttags` prints `PROCESS pid=<process-id>`, stop the running node with interrupt so it writes `ckp/ckp-*.json`, then validate that the generated checkpoint file does not contain plaintext encrypted-message sentinels:
 
 ```bash
 go run ./examples checkpoint <process-id>
@@ -59,12 +83,12 @@ go run ./examples checkpoint <process-id>
 Expected output:
 
 ```text
-CHECKPOINT encrypted=true plaintext_leaked=false
+CHECKPOINT plaintext_leaked=false
 ```
 
-This checks the latest matching `ckp/ckp-*.json` bundle item, decodes the checkpoint snapshot, confirms the encrypted `SpawnSecret` tag is still stored as ciphertext, and fails if either encrypted sentinel appears in checkpoint JSON as plaintext.
+This checks the latest matching `ckp/ckp-*.json` bundle item, decodes the checkpoint snapshot, and fails if the encrypted message sentinel appears in checkpoint JSON as plaintext.
 
-After restarting the node with the checkpoint present, verify the restored process can still decrypt the encrypted spawn tag and a new encrypted message tag:
+After restarting the node with the checkpoint present, verify the restored process can still decrypt a new encrypted message tag:
 
 ```bash
 go run ./examples checkpoint-restore <process-id>
@@ -76,7 +100,7 @@ Expected output:
 CHECKPOINT restore_decrypted=true
 ```
 
-By default, the checkpoint command searches the common local run directories, including `./ckp`, `../ckp`, `cmd/ckp`, and `../cmd/ckp`, so it works whether you run examples from the repo root or from `examples/` after starting the node from `cmd/`. Use `ENCRYPTTAGS_CKP_DIR` to inspect a specific checkpoint directory and `ENCRYPTTAGS_KEY_TYPE` to override the expected cipher key type for offline fixture checks.
+By default, the checkpoint command searches the common local run directories, including `./ckp`, `../ckp`, `cmd/ckp`, and `../cmd/ckp`, so it works whether you run examples from the repo root or from `examples/` after starting the node from `cmd/`. Use `ENCRYPTTAGS_CKP_DIR` to inspect a specific checkpoint directory.
 
 ## Configuration
 

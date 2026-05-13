@@ -2,20 +2,20 @@ package main
 
 import (
 	"bytes"
-	"errors"
+	"encoding/base64"
 	"testing"
 
-	"github.com/hymatrix/hymx/utils/tagcrypto"
 	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
 	goarSchema "github.com/permadao/goar/schema"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEncryptedTagStoredDetectsCipherAndLeakage(t *testing.T) {
+	ciphertext := base64.StdEncoding.EncodeToString([]byte("ciphertext"))
 	encrypted, leaked := encryptedTagStored([]goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "Secret", Value: tagcrypto.CipherValuePrefix + ":" + tagcrypto.KeyTypeEthereumECIES + ":ciphertext"},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: ciphertext},
 		{Name: "Plain", Value: "public-value"},
-	}, tagcrypto.EncryptedTagPrefix+"Secret", "private-value", tagcrypto.KeyTypeEthereumECIES)
+	}, vmmSchema.EncryptedTagPrefix+"Secret", "private-value")
 
 	require.True(t, encrypted)
 	require.False(t, leaked)
@@ -23,27 +23,28 @@ func TestEncryptedTagStoredDetectsCipherAndLeakage(t *testing.T) {
 
 func TestEncryptedTagStoredFlagsPlaintextLeak(t *testing.T) {
 	encrypted, leaked := encryptedTagStored([]goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "Secret", Value: "private-value"},
-	}, tagcrypto.EncryptedTagPrefix+"Secret", "private-value", tagcrypto.KeyTypeEthereumECIES)
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: "private-value"},
+	}, vmmSchema.EncryptedTagPrefix+"Secret", "private-value")
 
 	require.False(t, encrypted)
 	require.True(t, leaked)
 }
 
 func TestEncryptedTagStoredFlagsLeakFromUnrelatedTag(t *testing.T) {
+	ciphertext := base64.StdEncoding.EncodeToString([]byte("ciphertext"))
 	encrypted, leaked := encryptedTagStored([]goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "Secret", Value: tagcrypto.CipherValuePrefix + ":" + tagcrypto.KeyTypeEthereumECIES + ":ciphertext"},
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: ciphertext},
 		{Name: "Debug", Value: "private-value"},
-	}, tagcrypto.EncryptedTagPrefix+"Secret", "private-value", tagcrypto.KeyTypeEthereumECIES)
+	}, vmmSchema.EncryptedTagPrefix+"Secret", "private-value")
 
 	require.True(t, encrypted)
 	require.True(t, leaked)
 }
 
-func TestEncryptedTagStoredRejectsWrongKeyTypePrefix(t *testing.T) {
+func TestEncryptedTagStoredRejectsMalformedCiphertext(t *testing.T) {
 	encrypted, leaked := encryptedTagStored([]goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "Secret", Value: tagcrypto.CipherValuePrefix + ":" + tagcrypto.KeyTypeArweaveRSAOAEP + ":ciphertext"},
-	}, tagcrypto.EncryptedTagPrefix+"Secret", "private-value", tagcrypto.KeyTypeEthereumECIES)
+		{Name: vmmSchema.EncryptedTagPrefix + "Secret", Value: "not base64"},
+	}, vmmSchema.EncryptedTagPrefix+"Secret", "private-value")
 
 	require.False(t, encrypted)
 	require.False(t, leaked)
@@ -52,7 +53,7 @@ func TestEncryptedTagStoredRejectsWrongKeyTypePrefix(t *testing.T) {
 func TestEncryptedTagStoredRejectsMissingEncryptedTag(t *testing.T) {
 	encrypted, leaked := encryptedTagStored([]goarSchema.Tag{
 		{Name: "Plain", Value: "public-value"},
-	}, tagcrypto.EncryptedTagPrefix+"Secret", "private-value", tagcrypto.KeyTypeEthereumECIES)
+	}, vmmSchema.EncryptedTagPrefix+"Secret", "private-value")
 
 	require.False(t, encrypted)
 	require.False(t, leaked)
@@ -88,42 +89,17 @@ func TestOutputMapRejectsUnexpectedShape(t *testing.T) {
 func TestPrintEncryptedTagsSuccessRedactsSecrets(t *testing.T) {
 	var buf bytes.Buffer
 	printEncryptedTagsSuccess(&buf, encryptedTagsSummary{
-		SpawnEncrypted:   true,
-		SpawnLeaked:      false,
 		MessageEncrypted: true,
 		MessageLeaked:    false,
-		ReservedRejected: true,
 		ProcessID:        "process-id",
 		Plain:            "plain-e2e",
 	})
 
 	output := buf.String()
 	require.Contains(t, output, "E2E encrypted tags passed")
-	require.Contains(t, output, "RAW spawn encrypted=true plaintext_leaked=false")
 	require.Contains(t, output, "RAW message encrypted=true plaintext_leaked=false")
 	require.Contains(t, output, "PROCESS pid=process-id")
-	require.Contains(t, output, "RESULT decrypted=true Secret=<redacted> SpawnSecret=<redacted> Plain=plain-e2e")
-	require.Contains(t, output, "reserved encrypted tag rejected=true")
+	require.Contains(t, output, "RESULT decrypted=true Secret=<redacted> Plain=plain-e2e")
 	require.NotContains(t, output, "spawn-secret-e2e")
 	require.NotContains(t, output, "message-secret-e2e")
-}
-
-func TestReservedEncryptedTagRejectedAcceptsHTTP400(t *testing.T) {
-	rejected := reservedEncryptedTagRejected(errors.New("request failed: 400"), vmmSchema.VmmResult{})
-
-	require.True(t, rejected)
-}
-
-func TestReservedEncryptedTagRejectedAcceptsVMMResultError(t *testing.T) {
-	rejected := reservedEncryptedTagRejected(nil, vmmSchema.VmmResult{
-		Error: "encrypted tag uses reserved name: Type",
-	})
-
-	require.True(t, rejected)
-}
-
-func TestReservedEncryptedTagRejectedRejectsSuccessfulResult(t *testing.T) {
-	rejected := reservedEncryptedTagRejected(nil, vmmSchema.VmmResult{})
-
-	require.False(t, rejected)
 }

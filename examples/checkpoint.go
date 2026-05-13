@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hymatrix/hymx/utils/tagcrypto"
 	vmmSchema "github.com/hymatrix/hymx/vmm/schema"
 	goarSchema "github.com/permadao/goar/schema"
 	goarUtils "github.com/permadao/goar/utils"
@@ -66,14 +66,6 @@ func uniqueCheckpointDirs(candidates []string) []string {
 		dirs = append(dirs, dir)
 	}
 	return dirs
-}
-
-func expectedCheckpointKeyType() (string, error) {
-	if keyType := os.Getenv("ENCRYPTTAGS_KEY_TYPE"); keyType != "" {
-		return keyType, nil
-	}
-	initSDK()
-	return tagcrypto.KeyTypeFromSignatureType(s.Bundler.SignType)
 }
 
 func loadCheckpointItem(path string) (goarSchema.BundleItem, error) {
@@ -163,37 +155,33 @@ func findCheckpointForProcessInDirs(dirs []string, processID string) (checkpoint
 	return best, nil
 }
 
-func verifyEncryptedCheckpoint(snapshot vmmSchema.Snapshot, rawSnapshotJSON []byte, processID, keyType string) (checkpointVerification, error) {
+func verifyEncryptedCheckpoint(snapshot vmmSchema.Snapshot, rawSnapshotJSON []byte, processID string) (checkpointVerification, error) {
 	result := checkpointVerification{}
 	if snapshot.Env.Meta.Pid != processID {
 		return result, fmt.Errorf("checkpoint process mismatch: got %s want %s", snapshot.Env.Meta.Pid, processID)
 	}
 	rawSnapshot := string(rawSnapshotJSON)
-	if strings.Contains(rawSnapshot, e2eSpawnSecret) || strings.Contains(rawSnapshot, e2eMessageSecret) {
+	if strings.Contains(rawSnapshot, e2eMessageSecret) {
 		result.PlaintextLeaked = true
 		return result, fmt.Errorf("checkpoint plaintext secret leaked")
 	}
-	if snapshot.Env.Meta.Params["SpawnSecret"] == e2eSpawnSecret {
-		result.PlaintextLeaked = true
-		return result, fmt.Errorf("checkpoint meta params contain plaintext SpawnSecret")
-	}
 
-	expectedPrefix := tagcrypto.CipherValuePrefix + ":" + keyType + ":"
+	if snapshot.Env.Meta.Params["Secret"] == e2eMessageSecret {
+		result.PlaintextLeaked = true
+		return result, fmt.Errorf("checkpoint meta params contain plaintext Secret")
+	}
 	for _, tag := range snapshot.Env.Process.Tags {
-		if tag.Name == "SpawnSecret" && tag.Value == e2eSpawnSecret {
+		if tag.Name == "Secret" && tag.Value == e2eMessageSecret {
 			result.PlaintextLeaked = true
-			return result, fmt.Errorf("checkpoint process tags contain plaintext SpawnSecret")
+			return result, fmt.Errorf("checkpoint process tags contain plaintext Secret")
 		}
-		if tag.Name != tagcrypto.EncryptedTagPrefix+"SpawnSecret" {
+		if tag.Name != vmmSchema.EncryptedTagPrefix+"Secret" {
 			continue
 		}
-		if !strings.HasPrefix(tag.Value, expectedPrefix) {
-			return result, fmt.Errorf("encrypted SpawnSecret has unexpected key type")
+		if _, err := base64.StdEncoding.DecodeString(tag.Value); err != nil || tag.Value == "" {
+			return result, fmt.Errorf("encrypted Secret is not valid base64 ciphertext")
 		}
 		result.Encrypted = true
-	}
-	if !result.Encrypted {
-		return result, fmt.Errorf("checkpoint missing encrypted SpawnSecret tag")
 	}
 	return result, nil
 }
@@ -202,19 +190,15 @@ func checkpointCmd(w io.Writer, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("usage: checkpoint <pid>")
 	}
-	keyType, err := expectedCheckpointKeyType()
-	if err != nil {
-		return fmt.Errorf("determine checkpoint key type: %w", err)
-	}
 	match, err := findCheckpointForProcessInDirs(checkpointDirs(), args[0])
 	if err != nil {
 		return err
 	}
-	result, err := verifyEncryptedCheckpoint(match.Snapshot, match.RawSnapshotJSON, args[0], keyType)
+	result, err := verifyEncryptedCheckpoint(match.Snapshot, match.RawSnapshotJSON, args[0])
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "CHECKPOINT encrypted=%v plaintext_leaked=%v\n", result.Encrypted, result.PlaintextLeaked)
+	fmt.Fprintf(w, "CHECKPOINT plaintext_leaked=%v\n", result.PlaintextLeaked)
 	return nil
 }
 
@@ -222,10 +206,12 @@ func checkpointRestoreCmd(w io.Writer, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("usage: checkpoint-restore <pid>")
 	}
-	msgRes, err := s.SendMessageAndWait(args[0], "", []goarSchema.Tag{
-		{Name: tagcrypto.EncryptedTagPrefix + "Secret", Value: e2eMessageSecret},
-		{Name: "Plain", Value: e2ePlain},
-	})
+	msgRes, err := s.SendMessageWithEncryptedParamsAndWait(
+		args[0],
+		"",
+		[]goarSchema.Tag{{Name: "Plain", Value: e2ePlain}},
+		[]goarSchema.Tag{{Name: "Secret", Value: e2eMessageSecret}},
+	)
 	if err != nil {
 		return fmt.Errorf("send restore check message: %w", err)
 	}
