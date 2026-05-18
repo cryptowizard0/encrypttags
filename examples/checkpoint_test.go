@@ -196,15 +196,18 @@ func TestCheckpointCmdRequiresPid(t *testing.T) {
 
 func TestVerifyEchoMessageAcceptsExpectedOutput(t *testing.T) {
 	message := echoResultMessageForTest(t, map[string]string{
-		"Secret": e2eMessageSecret,
-		"Plain":  e2ePlain,
+		"Secret": "custom-secret",
+		"Plain":  "custom-plain",
 	})
 
-	output, err := verifyEchoMessage(message)
+	output, err := verifyEchoMessage(message, echoExpectation{
+		Secret: "custom-secret",
+		Plain:  "custom-plain",
+	})
 
 	require.NoError(t, err)
-	require.Equal(t, e2eMessageSecret, output["Secret"])
-	require.Equal(t, e2ePlain, output["Plain"])
+	require.Equal(t, "custom-secret", output["Secret"])
+	require.Equal(t, "custom-plain", output["Plain"])
 }
 
 func TestVerifyEchoMessageRejectsUnexpectedOutput(t *testing.T) {
@@ -213,7 +216,10 @@ func TestVerifyEchoMessageRejectsUnexpectedOutput(t *testing.T) {
 		"Plain":  e2ePlain,
 	})
 
-	_, err := verifyEchoMessage(message)
+	_, err := verifyEchoMessage(message, echoExpectation{
+		Secret: e2eMessageSecret,
+		Plain:  e2ePlain,
+	})
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected echo output")
@@ -223,7 +229,10 @@ func TestVerifyEchoMessageReportsVMMResultError(t *testing.T) {
 	by, err := json.Marshal(vmmSchema.VmmResult{Error: "err_invalid_nonce"})
 	require.NoError(t, err)
 
-	_, err = verifyEchoMessage(string(by))
+	_, err = verifyEchoMessage(string(by), echoExpectation{
+		Secret: e2eMessageSecret,
+		Plain:  e2ePlain,
+	})
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "vmm result error")

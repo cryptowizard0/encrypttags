@@ -68,7 +68,7 @@ func run(c *cli.Context) (err error) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
-	port, ginMode, redisURL, arweaveURL, hymxURL, bundler, nodeInfo, decryptor, err := LoadNodeConfig()
+	port, adminPort, ginMode, redisURL, arweaveURL, hymxURL, bundler, nodeInfo, decryptor, err := LoadNodeConfig()
 	if err != nil {
 		return err
 	}
@@ -84,8 +84,8 @@ func run(c *cli.Context) (err error) {
 		return err
 	}
 
-	s.Run(port, c.String("mode"))
-	log.Info("server is running", "protocol version", schema.Variant, "node version", nodeSchema.NodeVersion, "wallet", bundler.Address, "port", port)
+	s.Run(port, adminPort, c.String("mode"))
+	log.Info("server is running", "protocol version", schema.Variant, "node version", nodeSchema.NodeVersion, "wallet", bundler.Address, "port", port, "adminPort", adminPort)
 
 	<-signals
 	s.Close()

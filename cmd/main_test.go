@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,4 +37,17 @@ func TestResolveConfigPathFindsRepoRootConfig(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "./cmd/config.yaml", path)
+}
+
+func TestLoadNodeConfigReadsAdminPort(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.SetConfigFile("config.yaml")
+	viper.SetConfigType("yaml")
+	require.NoError(t, viper.ReadInConfig())
+
+	_, adminPort, _, _, _, _, _, _, _, err := LoadNodeConfig()
+
+	require.NoError(t, err)
+	require.Equal(t, ":8081", adminPort)
 }

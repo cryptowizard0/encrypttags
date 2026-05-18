@@ -215,7 +215,10 @@ func checkpointRestoreCmd(w io.Writer, args []string) error {
 	if err != nil {
 		return fmt.Errorf("send restore check message: %w", err)
 	}
-	if _, err := verifyEchoMessage(msgRes.Message); err != nil {
+	if _, err := verifyEchoMessage(msgRes.Message, echoExpectation{
+		Secret: e2eMessageSecret,
+		Plain:  e2ePlain,
+	}); err != nil {
 		return err
 	}
 	fmt.Fprintln(w, "CHECKPOINT restore_decrypted=true")

@@ -19,6 +19,11 @@ type encryptedTagsSummary struct {
 	Plain            string
 }
 
+type echoExpectation struct {
+	Secret string
+	Plain  string
+}
+
 func printEncryptedTagsSuccess(w io.Writer, summary encryptedTagsSummary) {
 	fmt.Fprintln(w, "E2E encrypted tags passed")
 	fmt.Fprintf(w, "RAW message encrypted=%v plaintext_leaked=%v\n", summary.MessageEncrypted, summary.MessageLeaked)
@@ -65,7 +70,10 @@ func encryptTagsCmd() error {
 		return fmt.Errorf("send echo message: %w", err)
 	}
 
-	output, err := verifyEchoMessage(msgRes.Message)
+	output, err := verifyEchoMessage(msgRes.Message, echoExpectation{
+		Secret: e2eMessageSecret,
+		Plain:  e2ePlain,
+	})
 	if err != nil {
 		return err
 	}
@@ -88,7 +96,7 @@ func encryptTagsCmd() error {
 	return nil
 }
 
-func verifyEchoMessage(message string) (map[string]string, error) {
+func verifyEchoMessage(message string, expected echoExpectation) (map[string]string, error) {
 	var result vmmSchema.VmmResult
 	if err := json.Unmarshal([]byte(message), &result); err != nil {
 		return nil, fmt.Errorf("decode message result: %w", err)
@@ -100,7 +108,7 @@ func verifyEchoMessage(message string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if output["Secret"] != e2eMessageSecret || output["Plain"] != e2ePlain {
+	if output["Secret"] != expected.Secret || output["Plain"] != expected.Plain {
 		return nil, fmt.Errorf("unexpected echo output: decrypted values did not match expected sentinels")
 	}
 	return output, nil

@@ -41,6 +41,20 @@ LOG_DIR=/tmp/encrypttags-e2e \
 ./scripts/encrypttags-e2e.sh
 ```
 
+Run the stop/resume flow separately:
+
+```bash
+./scripts/stop-resume-e2e.sh
+```
+
+This script prepares Redis, starts the node, initializes token/registry, spawns a plain echo process with `go run ./examples spawn-echo`, and verifies that the spawned process can be stopped and resumed through the admin API. It does not run the encrypted tags e2e or checkpoint flow.
+
+To preview the stop/resume commands:
+
+```bash
+./scripts/stop-resume-e2e.sh --dry-run
+```
+
 Manual flow:
 
 Start the node:
@@ -70,6 +84,30 @@ E2E encrypted tags passed
 RAW message encrypted=true plaintext_leaked=false
 PROCESS pid=<process-id>
 RESULT decrypted=true Secret=<redacted> Plain=plain-e2e
+```
+
+For stop/resume-only manual testing, spawn a plain echo process instead:
+
+```bash
+go run ./examples spawn-echo
+```
+
+Verify hymx stop/resume for that process while the node is running:
+
+```bash
+go run ./examples stop-resume <process-id>
+```
+
+Expected stop/resume evidence includes:
+
+```text
+STOP_RESUME running_before=true
+STOP_RESUME stopped=true
+STOP_RESUME running_after_stop=false
+STOP_RESUME stopped_send_rejected=true
+STOP_RESUME resumed=true
+STOP_RESUME running_after_resume=true
+STOP_RESUME resume_decrypted=true
 ```
 
 ## Checkpoint Validation
@@ -114,6 +152,7 @@ Override example client settings with:
 
 ```bash
 ENCRYPTTAGS_URL=http://127.0.0.1:8080
+ENCRYPTTAGS_ADMIN_URL=http://127.0.0.1:8081
 ENCRYPTTAGS_PRIVATE_KEY=0x...
 ENCRYPTTAGS_MODULE_ID=<module-id>
 ```
